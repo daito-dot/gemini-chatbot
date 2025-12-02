@@ -1,9 +1,15 @@
 """Gemini チャットボット - Streamlit アプリケーション"""
 
+import os
+from pathlib import Path
+
 import streamlit as st
 
 from src.chat import GeminiChat
 from src.document_loader import DocumentLoader
+
+# 事前登録ドキュメントのディレクトリ
+DOCS_DIR = Path(__file__).parent / "docs"
 
 # ページ設定
 st.set_page_config(
@@ -11,6 +17,24 @@ st.set_page_config(
     page_icon="🤖",
     layout="wide",
 )
+
+
+def load_preset_documents(chat: GeminiChat, loader: DocumentLoader):
+    """docs/ フォルダから事前登録ドキュメントを読み込み"""
+    if not DOCS_DIR.exists():
+        return
+
+    supported_extensions = {".pdf", ".txt", ".md", ".csv"}
+
+    for file_path in DOCS_DIR.iterdir():
+        if file_path.suffix.lower() in supported_extensions:
+            if file_path.name not in chat.get_document_list():
+                try:
+                    with open(file_path, "rb") as f:
+                        content = loader.load(f.read(), file_path.name)
+                    chat.add_document(f"[preset] {file_path.name}", content)
+                except Exception:
+                    pass  # 読み込み失敗は無視
 
 
 def init_session_state():
@@ -27,6 +51,11 @@ def init_session_state():
 
     if "loader" not in st.session_state:
         st.session_state.loader = DocumentLoader()
+
+    # 事前登録ドキュメントを読み込み
+    if "preset_loaded" not in st.session_state and st.session_state.chat:
+        load_preset_documents(st.session_state.chat, st.session_state.loader)
+        st.session_state.preset_loaded = True
 
 
 def main():
